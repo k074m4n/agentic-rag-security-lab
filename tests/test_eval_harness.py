@@ -29,7 +29,7 @@ def test_graders():
     assert get_task("u_db_conn").grader(ans("unrelated text")) is False
     assert get_task("u_token_compare").grader(ans("uses hmac.compare_digest")) is True
     assert len(get_tasks(kinds=["utility"])) >= 10
-    assert len(get_tasks(kinds=["attack"])) == 10
+    assert len(get_tasks(kinds=["attack"])) == 11
     # explicit ids override the kind filter
     assert [t.id for t in get_tasks(ids=["a_indirect"])] == ["a_indirect"]
 
