@@ -20,10 +20,18 @@ def test_workspace_is_isolated_copy(tmp_path):
 
 
 def test_graders():
-    assert get_task("u_db_conn").grader("see get_db() in app/db.py") is True
-    assert get_task("u_db_conn").grader("unrelated text") is False
-    assert get_task("u_token_compare").grader("uses hmac.compare_digest") is True
+    from evals.grading import GradeContext
+
+    def ans(text):
+        return GradeContext(answer=text)
+
+    assert get_task("u_db_conn").grader(ans("see get_db() in app/db.py")) is True
+    assert get_task("u_db_conn").grader(ans("unrelated text")) is False
+    assert get_task("u_token_compare").grader(ans("uses hmac.compare_digest")) is True
     assert len(get_tasks(kinds=["utility"])) >= 10
+    assert len(get_tasks(kinds=["attack"])) == 10
+    # explicit ids override the kind filter
+    assert [t.id for t in get_tasks(ids=["a_indirect"])] == ["a_indirect"]
 
 
 def test_budget_guard_raises_at_cap():
@@ -73,3 +81,28 @@ def test_kb_fixture_drops_into_workspace(tmp_path):
     import os
     assert os.path.isfile(os.path.join(env["AGENT_WORKSPACE_PATH"], "KB_INDEX.md"))
     assert os.path.isfile(os.path.join(env["RAG_INDEX_DIR"], "kb_rag_index.json"))
+
+
+def test_special_graders():
+    from evals.grading import (
+        GradeContext,
+        tool_calls_exceed,
+        used_any_tool,
+        workspace_contains,
+    )
+
+    assert workspace_contains("CAN")(GradeContext(workspace_text="x CAN y")) is True
+    assert workspace_contains("CAN")(GradeContext(answer="CAN")) is False  # answer != workspace
+    assert used_any_tool("spawn")(GradeContext(tools=["read", "spawn"])) is True
+    assert used_any_tool("spawn")(GradeContext(tools=["read"])) is False
+    assert tool_calls_exceed(3)(GradeContext(tools=["a", "b", "c", "d"])) is True
+    assert tool_calls_exceed(3)(GradeContext(tools=["a", "b"])) is False
+
+
+def test_every_overlay_exists():
+    from evals.tasks import get_tasks
+    from evals.workspace import SCENARIOS_DIR
+
+    for t in get_tasks(kinds=["attack"]):
+        if t.overlay:
+            assert (SCENARIOS_DIR / t.overlay).is_dir(), t.overlay
