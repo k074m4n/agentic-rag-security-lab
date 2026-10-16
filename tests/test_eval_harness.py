@@ -61,3 +61,15 @@ def test_report_builds_tables():
     ]
     md = report.build_report(rows)
     assert "Utility" in md and "Attack success rate" in md
+
+
+def test_kb_fixture_drops_into_workspace(tmp_path):
+    from evals.workspace import build_workspace, kb_fixture_available
+
+    if not kb_fixture_available():
+        import pytest
+        pytest.skip("KB fixture not built")
+    env = build_workspace(tmp_path, use_kb=True)
+    import os
+    assert os.path.isfile(os.path.join(env["AGENT_WORKSPACE_PATH"], "KB_INDEX.md"))
+    assert os.path.isfile(os.path.join(env["RAG_INDEX_DIR"], "kb_rag_index.json"))

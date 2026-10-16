@@ -90,7 +90,8 @@ def run_sweep(models, kinds, ids, defenses, trials, budget, max_steps, timeout, 
                 break
 
             with tempfile.TemporaryDirectory(prefix="eval_") as tmp:
-                workspace_env = build_workspace(tmp, overlay=task.overlay)
+                use_kb = task.use_kb_fixture and not task.build_kb
+                workspace_env = build_workspace(tmp, overlay=task.overlay, use_kb=use_kb)
                 rec = _run_subprocess(model, task, defense, trial, workspace_env,
                                       cost_cap=remaining, max_steps=max_steps, timeout=timeout)
 

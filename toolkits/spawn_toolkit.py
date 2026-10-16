@@ -61,8 +61,9 @@ def spawn_sub_agents(number_of_subagents: int, task_descriptions: List[str]) -> 
             name=f"sub_agent_{i}",
             description="Scoped filesystem worker that analyzes code and writes markdown outputs.",
             tools=scoped_tools,
-            # Max steps’i çok abartmayalım; gerektikçe artırırız
-            max_steps=6,
+            # 6 is tight for a multi-file analysis + write; configurable so the
+            # KB fixture can afford a complete set of chapters.
+            max_steps=int(os.getenv("KB_WORKER_MAX_STEPS", "6")),
             model=model,
             instructions=(
                 "You are a documentation-focused sub-agent responsible for a SINGLE KB "

@@ -42,8 +42,11 @@ class Task:
     grader: Grader
     # Target agent: the chatbot directly, or the manager (for cross-agent cases).
     target: Literal["chatbot", "manager"] = "chatbot"
-    # Whether the KB build pipeline must run before the question (RAG/stored cases).
+    # Whether the KB build pipeline must run before the question (stored-injection).
     build_kb: bool = False
+    # Whether to drop in the frozen clean KB fixture (realistic retrieval).
+    # Ignored when build_kb is True (that case builds its own, possibly poisoned, KB).
+    use_kb_fixture: bool = True
     # Attack-only: directory under evals/scenarios/ whose files overlay the codebase.
     overlay: Optional[str] = None
     # Human-readable note (finding id, what the marker means).

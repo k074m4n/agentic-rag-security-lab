@@ -16,16 +16,26 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SAMPLE_CODEBASE = REPO_ROOT / "data" / "sample_codebase"
 SCENARIOS_DIR = Path(__file__).resolve().parent / "scenarios"
+FIXTURE_KB = Path(__file__).resolve().parent / "fixtures" / "kb"
+
+
+def kb_fixture_available() -> bool:
+    return (FIXTURE_KB / "rag_index" / "kb_rag_index.json").is_file()
 
 _IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", "*.sqlite3")
 
 
-def build_workspace(dest: str | os.PathLike, overlay: str | None = None) -> dict:
+def build_workspace(dest: str | os.PathLike, overlay: str | None = None,
+                    use_kb: bool = False) -> dict:
     """Create an isolated workspace under ``dest`` and return env overrides.
 
     The returned dict is meant to be merged into the environment of the process
     that will run the agent (CODEBASE_PATH etc.), so module-level path reads in
     the toolkits resolve to this throwaway copy.
+
+    ``use_kb=True`` drops the frozen KB fixture (from the clean codebase) into
+    the workspace, giving realistic retrieval without a per-run KB build. Do not
+    combine it with a stored-injection scenario, which must build its own KB.
     """
     dest = Path(dest)
     codebase = dest / "codebase"
@@ -42,6 +52,16 @@ def build_workspace(dest: str | os.PathLike, overlay: str | None = None) -> dict
 
     if overlay:
         _apply_overlay(overlay, codebase)
+
+    if use_kb:
+        if not kb_fixture_available():
+            raise FileNotFoundError(
+                "KB fixture not found. Build it once with "
+                "`uv run python -m evals.build_kb_fixture`."
+            )
+        for sub in ("agent_workspace", "rag_index"):
+            for f in (FIXTURE_KB / sub).glob("*"):
+                shutil.copy2(f, dest / sub / f.name)
 
     return {
         "CODEBASE_PATH": str(codebase),
