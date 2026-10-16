@@ -18,7 +18,9 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 from evals.tasks import get_tasks
@@ -62,7 +64,19 @@ def _run_subprocess(model, task, defense, trial, workspace_env, cost_cap, max_st
             "cost": 0.0, "budget_exceeded": False}
 
 
-def run_sweep(models, kinds, ids, defenses, trials, budget, max_steps, timeout, out_path):
+def _do_run(model, task, defense, trial, max_steps, timeout, per_run_cap):
+    """Build an isolated workspace and run one task in a subprocess."""
+    with tempfile.TemporaryDirectory(prefix="eval_") as tmp:
+        use_kb = task.use_kb_fixture and not task.build_kb
+        workspace_env = build_workspace(tmp, overlay=task.overlay, use_kb=use_kb)
+        rec = _run_subprocess(model, task, defense, trial, workspace_env,
+                              cost_cap=per_run_cap, max_steps=max_steps, timeout=timeout)
+    rec["ts"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    return rec
+
+
+def run_sweep(models, kinds, ids, defenses, trials, budget, max_steps, timeout,
+              out_path, concurrency=1):
     tasks = get_tasks(kinds=kinds, ids=ids)
     if not tasks:
         print("No tasks selected.", file=sys.stderr)
@@ -72,52 +86,78 @@ def run_sweep(models, kinds, ids, defenses, trials, budget, max_steps, timeout, 
             for m in models for d in defenses for t in tasks for i in range(trials)]
     total = len(plan)
     print(f"Planned {total} runs: {len(models)} model(s) x {len(defenses)} defense(s) "
-          f"x {len(tasks)} task(s) x {trials} trial(s). Budget cap ${budget:.2f}.",
-          file=sys.stderr)
+          f"x {len(tasks)} task(s) x {trials} trial(s). Budget ${budget:.2f}, "
+          f"concurrency {concurrency}.", file=sys.stderr)
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    spent = 0.0
-    done = 0
+
+    state = {"spent": 0.0, "done": 0, "stop": False}
+    lock = threading.Lock()
+    out = out_path.open("a", encoding="utf-8")
     t_start = time.time()
 
-    with out_path.open("a", encoding="utf-8") as out:
-        for model, task, defense, trial in plan:
-            remaining = budget - spent
-            if remaining <= 0:
-                print(f"Budget ${budget:.2f} reached; stopping with {done}/{total} runs done.",
-                      file=sys.stderr)
-                break
-
-            with tempfile.TemporaryDirectory(prefix="eval_") as tmp:
-                use_kb = task.use_kb_fixture and not task.build_kb
-                workspace_env = build_workspace(tmp, overlay=task.overlay, use_kb=use_kb)
-                rec = _run_subprocess(model, task, defense, trial, workspace_env,
-                                      cost_cap=remaining, max_steps=max_steps, timeout=timeout)
-
-            rec["ts"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    def commit(rec):
+        with lock:
             out.write(json.dumps(rec) + "\n")
             out.flush()
-
-            spent += float(rec.get("cost", 0.0) or 0.0)
-            done += 1
-            flag = ""
-            if rec.get("error"):
-                flag = f"  ERROR: {rec['error'][:80]}"
-            elif rec.get("kind") == "utility":
-                flag = "  util=" + ("OK" if rec.get("utility_correct") else "miss")
-            elif rec.get("kind") == "attack":
-                flag = "  attack=" + ("SUCCESS" if rec.get("attack_success") else "blocked")
-            print(f"[{done}/{total}] {model.split('/')[-1]:22} {task.id:14} "
-                  f"trial{trial} ${spent:.4f}{flag}", file=sys.stderr)
-
+            state["spent"] += float(rec.get("cost", 0.0) or 0.0)
+            state["done"] += 1
+            done, spent = state["done"], state["spent"]
             if rec.get("budget_exceeded"):
-                print("A run hit the hard cost cap; stopping sweep.", file=sys.stderr)
-                break
+                state["stop"] = True
+        flag = ""
+        if rec.get("error"):
+            flag = f"  ERROR: {rec['error'][:80]}"
+        elif rec.get("kind") == "utility":
+            flag = "  util=" + ("OK" if rec.get("utility_correct") else "miss")
+        elif rec.get("kind") == "attack":
+            flag = "  attack=" + ("SUCCESS" if rec.get("attack_success") else "blocked")
+        print(f"[{done}/{total}] {rec.get('model', '').split('/')[-1]:22} "
+              f"{rec.get('task_id', ''):18} trial{rec.get('trial', 0)} "
+              f"${spent:.4f}{flag}", file=sys.stderr)
 
+    def per_cap():
+        # Hard cap for a single run: bound a runaway without starving a normal run.
+        return min(0.50, max(0.01, budget - state["spent"]))
+
+    def budget_ok():
+        with lock:
+            return not state["stop"] and state["spent"] < budget
+
+    if concurrency <= 1:
+        for item in plan:
+            if not budget_ok():
+                break
+            commit(_do_run(*item, max_steps, timeout, per_cap()))
+    else:
+        it = iter(plan)
+        inflight = set()
+        with ThreadPoolExecutor(max_workers=concurrency) as ex:
+            def submit_next():
+                item = next(it, None)
+                if item is None or not budget_ok():
+                    return False
+                inflight.add(ex.submit(_do_run, *item, max_steps, timeout, per_cap()))
+                return True
+
+            for _ in range(concurrency):
+                if not submit_next():
+                    break
+            while inflight:
+                finished, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+                for fut in finished:
+                    commit(fut.result())
+                while budget_ok() and len(inflight) < concurrency:
+                    if not submit_next():
+                        break
+
+    out.close()
     dt = time.time() - t_start
-    print(f"\nDone: {done} runs, ${spent:.4f} spent, {dt/60:.1f} min. Results in {out_path}",
-          file=sys.stderr)
+    if state["spent"] >= budget or state["stop"]:
+        print(f"Budget ${budget:.2f} reached.", file=sys.stderr)
+    print(f"\nDone: {state['done']}/{total} runs, ${state['spent']:.4f} spent, "
+          f"{dt/60:.1f} min. Results in {out_path}", file=sys.stderr)
     return 0
 
 
@@ -133,6 +173,8 @@ def main() -> int:
     ap.add_argument("--budget", type=float, default=1.0, help="Hard USD cap for the whole sweep.")
     ap.add_argument("--max-steps", type=int, default=6)
     ap.add_argument("--timeout", type=int, default=600, help="Per-run timeout (s).")
+    ap.add_argument("--concurrency", type=int, default=1,
+                    help="Parallel runs (each its own subprocess and workspace).")
     ap.add_argument("--out", default="evals/results/runs.jsonl")
     args = ap.parse_args()
 
@@ -146,6 +188,7 @@ def main() -> int:
         max_steps=args.max_steps,
         timeout=args.timeout,
         out_path=args.out,
+        concurrency=args.concurrency,
     )
 
 
