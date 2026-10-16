@@ -1,22 +1,25 @@
 import os
 from typing import List
+
 from dotenv import load_dotenv
 from loguru import logger
 from smolagents import Tool
 from smolagents.agents import ToolCallingAgent as SmolToolCallingAgent
 
-from toolkits.spawn_toolkit import spawn_sub_agents
-from toolkits.kb_orchestration_toolkit import plan_kb_tasks_from_codebase, merge_kb_outputs_to_index, build_kb_short_from_index
-from toolkits.rag_toolkit import build_rag_index_for_kb
-
 from agents.base_agent import BaseAgent, BaseManagerAgent
 from agents.common import make_model, rate_limiter
 from prompts import prompts
+from toolkits.kb_orchestration_toolkit import (
+    build_kb_short_from_index,
+    merge_kb_outputs_to_index,
+    plan_kb_tasks_from_codebase,
+)
+from toolkits.rag_toolkit import build_rag_index_for_kb
+from toolkits.spawn_toolkit import spawn_sub_agents
 
 load_dotenv()
 
 RETURN_FULL_RESULT = True
-LITELLM_MODEL_ID = os.getenv("LITELLM_MODEL") or "gemini/gemini-2.5-flash-lite"
 
 class ManagerAgent(BaseManagerAgent):
     def __init__(self, tools: List[Tool], managed_agents: List[BaseAgent], max_steps: int = 6, max_retries: int = 2):

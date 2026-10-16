@@ -1,24 +1,27 @@
-import os, re
+import os
+import re
+import time
 from pathlib import Path
 from typing import List, Tuple
+
 from dotenv import load_dotenv
 from smolagents import tool
+
 from agents.common import rate_limiter
-import time
+
+from .kb_task_prompts import (
+    KB_API_REFERENCE_TASK,
+    KB_ARCHITECTURE_TASK,
+    KB_BUILD_AND_TOOLING_TASK,
+    KB_DATA_MODELS_TASK,
+    KB_OVERVIEW_TASK,
+    KB_TESTING_AND_QA_TASK,
+)
 
 load_dotenv()
 CODEBASE_PATH   = os.getenv("CODEBASE_PATH", "data/sample_codebase")
 SUB_AGENTS_ROOT = os.getenv("SUB_AGENTS_ROOT", "data/sub_agents_workspace")
 AGENT_WORKSPACE = os.getenv("AGENT_WORKSPACE_PATH", "data/agent_workspace")
-
-from .kb_task_prompts import (
-    KB_OVERVIEW_TASK,
-    KB_ARCHITECTURE_TASK,
-    KB_API_REFERENCE_TASK,
-    KB_DATA_MODELS_TASK,
-    KB_BUILD_AND_TOOLING_TASK,
-    KB_TESTING_AND_QA_TASK,
-)
 
 os.makedirs(SUB_AGENTS_ROOT, exist_ok=True)
 os.makedirs(AGENT_WORKSPACE, exist_ok=True)
@@ -256,7 +259,7 @@ def build_kb_short_from_index(
             current_section = []
         elif ln.startswith("# "):
             # Keep the very first main title once, skip others
-            if not any(l.startswith("# ") for l in out_lines):
+            if not any(line.startswith("# ") for line in out_lines):
                 out_lines.append(ln)
                 out_lines.append("\n")
         else:

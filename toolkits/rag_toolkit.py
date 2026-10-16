@@ -1,9 +1,10 @@
-import os
-import re
+import hashlib
 import json
 import math
+import os
+import re
 import time
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 from smolagents import tool
@@ -31,10 +32,18 @@ def _read_file(path: str) -> str:
 def _simple_tokenize(text: str) -> List[str]:
     return re.findall(r"[a-zA-Z0-9_]+", text.lower())
 
+def _stable_bucket(token: str, dim: int) -> int:
+    digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(digest, "big") % dim
+
 def _embed_text(text: str, dim: int = EMBED_DIM) -> List[float]:
     """
     A very simple embedding function that creates a normalized bag-of-words
     vector based on hashed tokens.
+
+    Uses a stable hash (blake2b) instead of the builtin hash(), which is salted
+    per process (PYTHONHASHSEED) and made the stored index disagree with query
+    embeddings computed in a later process.
     
     Args: 
         text (str): Text to embed.
@@ -45,7 +54,7 @@ def _embed_text(text: str, dim: int = EMBED_DIM) -> List[float]:
     """
     vec = [0.0] * dim
     for tok in _simple_tokenize(text):
-        idx = hash(tok) % dim
+        idx = _stable_bucket(tok, dim)
         vec[idx] += 1.0
     norm = math.sqrt(sum(v * v for v in vec)) or 1.0
     return [v / norm for v in vec]
@@ -256,7 +265,7 @@ def _load_index() -> Dict[str, Any]:
 
 def _cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     # Cosine similarity between two vectors
-    return sum(a * b for a, b in zip(vec_a, vec_b))
+    return sum(a * b for a, b in zip(vec_a, vec_b, strict=True))
 
 @tool
 def semantic_search_documents(query: str, top_k: int = 5) -> str:
@@ -280,7 +289,7 @@ def semantic_search_documents(query: str, top_k: int = 5) -> str:
     q_emb = _embed_text(query)
 
     scored: List[Dict[str, Any]] = []
-    for emb, doc in zip(embeddings, docs):
+    for emb, doc in zip(embeddings, docs, strict=True):
         score = _cosine_similarity(q_emb, emb)
         scored.append({"score": score, "doc": doc})
 

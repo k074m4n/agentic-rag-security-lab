@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from smolagents import MultiStepAgent
 from typing import Optional
+
+from smolagents import MultiStepAgent
 
 
 class BaseAgent(ABC):

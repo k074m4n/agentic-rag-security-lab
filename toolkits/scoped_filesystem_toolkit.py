@@ -1,6 +1,8 @@
 import os
 from typing import List
+
 from smolagents import tool
+
 
 def _abs_norm(p: str) -> str:
     return os.path.realpath(os.path.abspath(p))
@@ -37,7 +39,7 @@ def create_scoped_filesystem_tools(*, codebase_root: str, workspace_root: str):
             str: A string representing the directory tree of the codebase.
         """
         lines = []
-        for root, dirs, files in os.walk(codebase_root):
+        for root, _dirs, files in os.walk(codebase_root):
             rel = os.path.relpath(root, codebase_root)
             indent = "" if rel == "." else "  " * len(rel.split(os.sep))
             lines.append(f"{indent}{'.' if rel == '.' else rel}/")

@@ -1,17 +1,21 @@
 import os
-import re
-import time
 import random
+import re
 import threading
-from loguru import logger
-from typing import Any, Dict, Optional
+import time
+from typing import Any, Optional
 
+from dotenv import load_dotenv
+from loguru import logger
 from smolagents.models import LiteLLMModel
+
+# Bu modül import zincirinde ilk yüklenenlerden; GLOBAL_RPM vb. okunmadan önce .env yüklensin.
+load_dotenv()
 
 # Global single-channel concurrency (only 1 request at a time)
 _GLOBAL_CONCURRENCY = threading.Semaphore(1)
 
-DEFAULT_MODEL_ID = os.getenv("LITELLM_MODEL", "openai/gpt-4.1-mini")
+DEFAULT_MODEL_ID = "openai/gpt-4.1-mini"
 
 def _model_id_for_role(role: str) -> str:
     """
@@ -35,8 +39,9 @@ def _model_id_for_role(role: str) -> str:
         if val:
             return val
 
-    # Role için özel env yoksa, genel default'a dön
-    return DEFAULT_MODEL_ID
+    # Role için özel env yoksa, genel default'a dön.
+    # Call time'da okunur: bu modül load_dotenv()'den önce import edilebiliyor.
+    return os.getenv("LITELLM_MODEL") or DEFAULT_MODEL_ID
 
 
 # RPM throttling with jitter to avoid thundering herd
