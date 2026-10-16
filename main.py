@@ -1,20 +1,20 @@
 import os
+
 from dotenv import load_dotenv
 from loguru import logger
 
 from agents.base_agent import BaseAgent
-from agents.tool_calling_agent import ToolCallingAgent
 from agents.code_agent import CodeAgent
 from agents.manager_agent import ManagerAgent
-from ui.gradio_agent_ui import GradioAgentUI
-
+from agents.tool_calling_agent import ToolCallingAgent
 from toolkits.kb_orchestration_toolkit import (
-    plan_kb_tasks_from_codebase,
-    merge_kb_outputs_to_index,
     build_kb_short_from_index,
+    merge_kb_outputs_to_index,
+    plan_kb_tasks_from_codebase,
 )
-from toolkits.spawn_toolkit import spawn_sub_agents
 from toolkits.rag_toolkit import build_rag_index_for_kb
+from toolkits.spawn_toolkit import spawn_sub_agents
+from ui.gradio_agent_ui import GradioAgentUI
 
 # from phoenix.otel import register
 # from openinference.instrumentation.smolagents import SmolagentsInstrumentor
@@ -22,11 +22,14 @@ from toolkits.rag_toolkit import build_rag_index_for_kb
 load_dotenv()
 
 AUTO_BUILD_KB = os.getenv("AUTO_BUILD_KB", "false").lower() == "true"
+# CodeAgent runs model-written Python in-process (LocalPythonExecutor is not a security
+# boundary). Off by default; see README "Known attack surface".
+ENABLE_CODE_AGENT = os.getenv("ENABLE_CODE_AGENT", "false").lower() == "true"
 # Phoenix/OpenInference şimdilik kapalı
 # register()
 # SmolagentsInstrumentor().instrument()
 
-KB_ORCHESTRATION_MODE = os.getenv("KB_ORCHESTRATION_MODE", "python").lower()
+KB_ORCHESTRATION_MODE = os.getenv("KB_ORCHESTRATION_MODE", "deter").lower()
 # "deter"  -> deterministik plan→spawn→merge (LLM sadece sub-agent'larda)
 # "agent"   -> eski davranış: ManagerAgent.run(...) ile orkestrasyon
 
@@ -86,7 +89,7 @@ def kickoff_kb_build(manager_agent: BaseAgent) -> None:
         rag_summary = build_rag_index_for_kb(include_codebase=False)
         print("[KB]", rag_summary)
 
-        print("[KB] Auto-build done (python mode).")
+        print("[KB] Auto-build done (deter mode).")
 
 
 def main() -> None:
@@ -94,14 +97,18 @@ def main() -> None:
     # KB'yi (search_kb/read_kb_file) kullanabilen chatbot
     tool_calling_agent: BaseAgent = ToolCallingAgent(tools=[])
 
-    # Örnek code agent (şimdilik dış tool yok, placeholder)
-    code_agent: BaseAgent = CodeAgent(tools=[])
+    managed_agents = [tool_calling_agent.agent]
+
+    # Örnek code agent (dış tool yok, placeholder) — yalnızca açıkça istenirse
+    if ENABLE_CODE_AGENT:
+        logger.warning("ENABLE_CODE_AGENT=true: code_agent executes model-written Python locally.")
+        managed_agents.append(CodeAgent(tools=[]).agent)
 
     # === STEP 2: Manager agent ===
     # ManagerAgent kendi içinde KB orchestration tool'larını ekliyor
     manager_agent: BaseAgent = ManagerAgent(
         tools=[],
-        managed_agents=[tool_calling_agent.agent, code_agent.agent],
+        managed_agents=managed_agents,
     )
 
     # Otomatik KB build (isteğe bağlı, .env üzerinden)

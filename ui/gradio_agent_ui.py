@@ -1,7 +1,9 @@
+import os
+
 from smolagents import GradioUI
 
-from ui.base_ui import BaseUI 
 from agents.base_agent import BaseAgent
+from ui.base_ui import BaseUI
 
 
 class GradioAgentUI(BaseUI):
@@ -23,4 +25,7 @@ class GradioAgentUI(BaseUI):
         """
         Launches the Gradio agent chat interface.
         """
-        self.ui.launch(server_name="127.0.0.1", share=True)
+        # smolagents' GradioUI.launch() defaults to share=True, which opens a public
+        # *.gradio.live tunnel to an agent with file-write tools. Opt-in only.
+        share = os.getenv("GRADIO_SHARE", "false").lower() == "true"
+        self.ui.launch(server_name="127.0.0.1", share=share)

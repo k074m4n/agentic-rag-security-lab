@@ -1,9 +1,10 @@
-from dotenv import load_dotenv
-from smolagents import tool
-
-import os, time, random
+import os
+import random
+import time
 from typing import List
 
+from dotenv import load_dotenv
+from smolagents import tool
 from smolagents.agents import ToolCallingAgent as SmolToolCallingAgent
 
 from agents.common import make_model, rate_limiter
@@ -16,8 +17,6 @@ except Exception:
 from toolkits.scoped_filesystem_toolkit import create_scoped_filesystem_tools
 
 load_dotenv()
-LITELLM_MODEL_ID = os.getenv("LITELLM_MODEL_ID")
-LITELLM_API_KEY = os.getenv("LITELLM_API_KEY")
 CODEBASE_PATH   = os.getenv("CODEBASE_PATH", "data/sample_codebase")
 SUB_AGENTS_ROOT = os.getenv("SUB_AGENTS_ROOT", "data/sub_agents_workspace")
 
@@ -88,12 +87,12 @@ def spawn_sub_agents(number_of_subagents: int, task_descriptions: List[str]) -> 
                 time.sleep(random.uniform(0.15, 0.35))
                 worker.run(task_descriptions[i])
                 break  # başarı
-            except LiteRateLimitError as e:
+            except LiteRateLimitError:
                 # 429 ise exponential backoff + ufak jitter
                 sleep_s = min(30, (1.6 ** attempt)) + random.uniform(0.0, 0.6)
                 time.sleep(sleep_s)
                 continue
-            except Exception as e:
+            except Exception:
                 # Diğer hatalar: aynen fırlat
                 raise
 

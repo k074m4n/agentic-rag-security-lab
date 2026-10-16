@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Optional
+
 from agents.base_agent import BaseAgent
+
 
 class BaseUI(ABC):
     def __init__(self, agent: Optional[BaseAgent] = None):

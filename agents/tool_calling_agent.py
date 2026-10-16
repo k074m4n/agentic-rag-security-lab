@@ -1,21 +1,20 @@
 import os
 from typing import List
+
 from dotenv import load_dotenv
 from loguru import logger
 from smolagents import Tool
 from smolagents.agents import ToolCallingAgent as SmolToolCallingAgent
 
-from toolkits.kb_search_toolkit import search_kb, read_kb_file
-from toolkits.rag_toolkit import semantic_search_documents
-from toolkits.scoped_filesystem_toolkit import create_scoped_filesystem_tools
-
 from agents.base_agent import BaseAgent
 from agents.common import make_model, rate_limiter
 from prompts import prompts
+from toolkits.kb_search_toolkit import read_kb_file, search_kb
+from toolkits.rag_toolkit import semantic_search_documents
+from toolkits.scoped_filesystem_toolkit import create_scoped_filesystem_tools
 
 load_dotenv()
 
-LITELLM_MODEL_ID = os.getenv("LITELLM_MODEL") or "gemini/gemini-2.5-flash-lite"
 CODEBASE_PATH = os.getenv("CODEBASE_PATH", "data/sample_codebase")
 AGENT_WORKSPACE = os.getenv("AGENT_WORKSPACE_PATH", "data/agent_workspace")
 

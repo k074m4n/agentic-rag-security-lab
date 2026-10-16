@@ -1,10 +1,20 @@
 # toolkits/kb_search_toolkit.py
-import os, re, math
-from typing import List, Tuple, Dict
+import os
+import re
+from typing import Dict, List, Tuple
+
+from dotenv import load_dotenv
 from smolagents import tool
 
-KB_ROOT = os.path.abspath("data/agent_workspace")  # KB_INDEX.md burada
-KB_FILES = ["KB_INDEX.md", "KB_SHORT.md", "src_overview.md", "tests_overview.md"]
+load_dotenv()
+
+# Files produced by the KB build pipeline (merge_kb_outputs_to_index / build_kb_short_from_index)
+KB_FILES = ["KB_INDEX.md", "KB_SHORT.md"]
+
+
+def _kb_root() -> str:
+    # Read at call time so AGENT_WORKSPACE_PATH from .env (or tests) is honoured
+    return os.path.abspath(os.getenv("AGENT_WORKSPACE_PATH", "data/agent_workspace"))
 
 def _read_file(path: str) -> str:
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
@@ -16,12 +26,15 @@ def _tokenize(t: str) -> List[str]:
 def _score(query: str, text: str) -> float:
     # çok basit BM25-vari: tf * idf taklidi
     q = _tokenize(query)
-    if not q: return 0.0
+    if not q:
+        return 0.0
     toks = _tokenize(text)
-    if not toks: return 0.0
-    tf = {w:0 for w in q}
+    if not toks:
+        return 0.0
+    tf = {w: 0 for w in q}
     for w in toks:
-        if w in tf: tf[w]+=1
+        if w in tf:
+            tf[w] += 1
     # idf ~ 1 / freq
     score = 0.0
     for w in q:
@@ -38,7 +51,7 @@ def _split_by_sections(md: str) -> List[Tuple[str,str]]:
     # parts[0] doküman başındaki giriş olabilir
     if parts[0].strip():
         out.append(("Intro", parts[0]))
-    for h, body in zip(heads, parts[1:]):
+    for h, body in zip(heads, parts[1:], strict=False):
         out.append((h.strip(), body))
     return out
 
@@ -59,7 +72,7 @@ def search_kb(query: str, top_k: int = 5) -> List[Dict]:
     """
     results=[]
     for fname in KB_FILES:
-        fpath = os.path.join(KB_ROOT, fname)
+        fpath = os.path.join(_kb_root(), fname)
         if not os.path.exists(fpath): 
             continue
         md = _read_file(fpath)
@@ -83,7 +96,7 @@ def search_kb(query: str, top_k: int = 5) -> List[Dict]:
 @tool
 def read_kb_file(file_name: str) -> str:
     """
-    Read a KB file verbatim (KB_INDEX.md/src_overview.md/tests_overview.md).
+    Read a KB file verbatim (KB_INDEX.md or KB_SHORT.md).
     
     Args:
         file_name (str): The name of the KB file to read.
@@ -94,7 +107,7 @@ def read_kb_file(file_name: str) -> str:
     """
     if file_name not in KB_FILES:
         raise ValueError(f"Unsupported KB file: {file_name}")
-    fpath = os.path.join(KB_ROOT, file_name)
+    fpath = os.path.join(_kb_root(), file_name)
     if not os.path.exists(fpath):
         raise FileNotFoundError(f"{file_name} not found in KB root.")
     return _read_file(fpath)

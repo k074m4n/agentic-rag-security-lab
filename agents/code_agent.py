@@ -1,5 +1,5 @@
-import os
 from typing import List
+
 from dotenv import load_dotenv
 from loguru import logger
 from smolagents import Tool
@@ -11,7 +11,6 @@ from prompts import prompts
 
 load_dotenv()
 
-LITELLM_MODEL_ID = os.getenv("LITELLM_MODEL") or "gemini/gemini-2.5-flash-lite"
 
 class CodeAgent(BaseAgent):
     def __init__(self, tools: List[Tool], max_steps: int = 6, max_retries: int = 2):
@@ -19,7 +18,7 @@ class CodeAgent(BaseAgent):
 
         self.agent = SmolCodeAgent(
             name="code_agent",
-            description="A worker agent with access to native tools to tell jokes.",
+            description="Placeholder code agent. Executes model-written Python via smolagents' LocalPythonExecutor (not a sandbox); disabled unless ENABLE_CODE_AGENT=true.",
             tools=tools,
             model=make_model(role="code"),
             instructions=prompts.CODE_AGENT
