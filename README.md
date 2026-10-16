@@ -5,7 +5,7 @@ A multi-agent RAG assistant for codebase Q&A, built with
 attacks on LLM agents**: indirect prompt injection, RAG poisoning, persistent (stored)
 injection, and excessive agency. Defenses are then measured against those attacks.
 
-> **Status: Phase 0 (foundation) is complete.** The app runs on current, audited
+> **Status: Phase 0 (foundation) and Phase 1 ([threat model](docs/THREAT_MODEL.md)) are complete.** The app runs on current, audited
 > dependencies and has an offline test suite and CI. Attack scenarios, the evaluation
 > harness and the defenses come next (see [Roadmap](#roadmap)).
 
@@ -46,6 +46,9 @@ untrusted text into a model's context.
 
 ## Known attack surface
 
+The full analysis (assets, attacker model, trust boundaries, per-agent Rule of Two check,
+risk ratings and control plan) is in **[docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)**.
+
 Each finding links to the code that causes it and is mapped to the
 [OWASP Top 10 for LLM Applications 2026](https://genai.owasp.org/llm-top-10/), the
 [OWASP Top 10 for Agentic Applications](https://genai.owasp.org/) (ASI, Dec 2025) and
@@ -61,6 +64,8 @@ Each finding links to the code that causes it and is mapped to the
 | F6 | Model-written Python executed in-process | `CodeAgent` uses smolagents' `LocalPythonExecutor`, which is [not a security boundary](https://huggingface.co/docs/smolagents/tutorials/secure_code_execution) | LLM03 | ASI05 | — | Mitigated in Phase 0: disabled unless `ENABLE_CODE_AGENT=true` |
 | F7 | Public tunnel to a tool-wielding agent | The UI launched with `share=True`, and smolagents' `GradioUI.launch()` defaults to it | — | ASI03 | — | Fixed in Phase 0: opt-in via `GRADIO_SHARE` |
 | F8 | Vulnerable and compromisable dependencies | Pins from 2025, no lockfile | LLM04 | ASI04 | — | Fixed in Phase 0 (see below) |
+| F9 | Secrets copied into the KB by design | The KB planner lists `.env` among config files for the build-and-tooling worker ([kb_orchestration_toolkit.py](toolkits/kb_orchestration_toolkit.py)), so credentials in the target codebase can reach the KB and RAG index with no attacker involved | LLM02 | ASI06 | AML.T0057 | Planned |
+| F10 | Unbounded consumption | `spawn_sub_agents` has no cap on worker count and retries rate-limit errors in an unbounded loop ([spawn_toolkit.py](toolkits/spawn_toolkit.py)) | LLM06 | ASI08 | AML.T0034 | Planned |
 
 What is *not* a finding: path traversal. The scoped filesystem tools resolve `realpath` and
 check `commonpath`, so `../`, absolute paths and symlink escapes are rejected (covered by
@@ -126,8 +131,8 @@ tests/       offline test suite
 
 ## Roadmap
 
-1. **Threat model:** data-flow diagram with trust boundaries, and a per-agent capability
-   analysis against the Rule of Two.
+1. ~~**Threat model:** data-flow diagram with trust boundaries, and a per-agent capability
+   analysis against the Rule of Two.~~ Done: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 2. **Attacks + evaluation harness:** reproducible payload overlays on the sample codebase,
    attack success rate over N trials per scenario, a benign-task **utility** score (so that
    "refuse everything" does not count as a defense), and runs across more than one model.
