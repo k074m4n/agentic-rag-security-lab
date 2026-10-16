@@ -1,261 +1,144 @@
-# Smolagents Quickstart Template
+# agentic-rag-security-lab
 
-Ready-to-use template for building multi-agent apps with Smolagents. It ships with:
-- Gradio chat UI
-- MCP client manager
-- A manager agent coordinating two worker agents (tool-calling + code)
-- OpenTelemetry tracing support with Phoenix
+A multi-agent RAG assistant for codebase Q&A, built with
+[smolagents](https://github.com/huggingface/smolagents), and used as a **target for studying
+attacks on LLM agents**: indirect prompt injection, RAG poisoning, persistent (stored)
+injection, and excessive agency. Defenses are then measured against those attacks.
 
-Use this as a minimal, extensible starting point to create your own agents, tools, and UIs.
+> **Status: Phase 0 (foundation) is complete.** The app runs on current, audited
+> dependencies and has an offline test suite and CI. Attack scenarios, the evaluation
+> harness and the defenses come next (see [Roadmap](#roadmap)).
 
-## Overview
+> **Scope.** This is a local, educational lab. It uses only fake secrets, attacks only its
+> own sample codebase, and has no real exfiltration endpoints.
 
-- Manager agent delegates to two workers:
-	- Tool-calling worker uses DeepWiki MCP tools (queries public GitHub repos).
-	- Code worker uses a native Joke toolkit (`get_joke`).
-- `MCPManager` loads clients from JSON and exposes their tools to agents.
-- `GradioAgentUI` launches a chat interface for the manager agent.
+## Why this target is interesting
 
-Simple flow:
-
-```mermaid
-flowchart LR
-	User[User] --> UI[Gradio UI]
-	UI --> Manager["Manager (Tool-Calling Agent)"]
-	Manager --> DeepwikiWorker["Worker (Tool-Calling Agent)"]
-	Manager --> JokeWorker["Worker (Code Agent)"]
-	DeepwikiWorker --> DeepWiki["DeepWiki MCP Tools"]
-	JokeWorker --> JokeAPI["Joke Toolkit (Native Tools)"]
-```
-
-## Quick Start
-
-Prereqs: Python 3.13+, and `uv` for dependency management.
-
-```zsh
-# Clone and enter the project
-git clone <this-repo-url>
-cd smolagents-quickstart-template
-```
-
-```zsh
-# Create your environment from pyproject/uv.lock
-uv sync
-```
-
-```zsh
-# Copy env and fill required values
-cp env.example .env
-```
-
-Edit `.env` and set at least:
-- `LITELLM_MODEL_ID` (e.g., `gemini/gemini-2.5-flash` or your preferred model id)
-- `LITELLM_API_KEY` (API key for the selected model provider)
-- `MCP_CONFIG_PATH=mcp_manager/mcp_config.json` (path to the included MCP config)
-
-Notes:
-- The included MCP config defines a `deepwiki` client using streamable-http.
-- Other env entries are optional unless you run your own MCP servers.
-
-## LLM Models
-
-This template uses `LiteLLMModel` in the example agents so you can plug into many providers with a single interface.
-- Configure via `.env`: set `LITELLM_MODEL_ID` and `LITELLM_API_KEY`.
-- Examples: `gemini/gemini-2.5-flash`, `openai/gpt-4o-mini`, etc. (provider/model naming per LiteLLM conventions).
-- You can swap to other Smolagents-supported backends by replacing `LiteLLMModel` in your agents.
-
-See Smolagents docs for supported model backends and parameters:
-- Docs: https://huggingface.co/docs/smolagents
-- GitHub (examples): https://github.com/huggingface/smolagents
-
-## Run
-
-Launch the manager agent with a Gradio chat UI:
-
-```zsh
-uv run python app.py
-```
-
-The terminal will print the Gradio URLs (local and a temporary share link). Open the printed URL in your browser to chat with the manager agent.
-
-## Tracing and Monitoring
-
-This template includes OpenTelemetry tracing support using Phoenix and OpenInference for Smolagents. Tracing is enabled by default to monitor agent interactions and performance.
-
-To inspect traces from your runs:
-
-```zsh
-python -m phoenix.server.main serve
-```
-
-You can then navigate to http://0.0.0.0:6006/projects/ to inspect your run!
+The assistant reads files it does not control (source code, docs, generated KB chapters),
+and in the same session it holds tools that change state (file writes, sub-agent spawning,
+index rebuilds). That pairing is the classic shape behind prompt-injection incidents.
+Meta's [Agents Rule of Two](https://ai.meta.com/blog/practical-ai-agent-security/) describes
+it: an agent should combine at most two of (A) untrusted input, (B) sensitive data/systems
+and (C) state change or external communication. This app, as originally built, combines
+all three.
 
 ## Architecture
 
-- Manager Agent (`ExampleManagerAgent`): Orchestrates work and delegates to workers.
-- Tool-Calling Worker (`ExampleToolCallingAgent`): Uses DeepWiki MCP tools for repo knowledge.
-- Code Worker (`ExampleCodeAgent`): Uses a native Joke toolkit (`get_joke`).
-
-
-High-level flow (from `main.py`):
-
-1. Initialize `MCPManager` and set up MCP clients (`setup_clients`).
-2. Fetch tools: MCP tools from `deepwiki` and native tools from `ExampleJokeToolkit`.
-3. Create workers: `ExampleToolCallingAgent` (MCP tools) and `ExampleCodeAgent` (native tools).
-4. Create `ExampleManagerAgent` with `managed_agents=[tool_calling_agent.agent, code_agent.agent]`.
-5. Launch the Gradio chat UI via `GradioAgentUI(agent=manager_agent).launch()`.
-6. On exit, disconnect MCP clients (`mcp_manager.disconnect_all()`).
-
-Simple phases diagram:
-
 ```mermaid
 flowchart LR
-	MCP[MCP setup + tools] --> Agents[Agent creation]
-	Agents --> UI[Gradio UI + chat loop]
+    U[User / Gradio UI] --> M[manager_agent]
+    M -->|delegates question| C[tool_calling_agent<br/>chatbot]
+    M -->|KB build tools| P[plan → spawn sub-agents → merge → index]
+    P --> W[KB worker sub-agents]
+    W -->|read| CB[(sample_codebase<br/>UNTRUSTED)]
+    W -->|write chapters| KB[(KB_INDEX.md / KB_SHORT.md)]
+    P --> R[(RAG index)]
+    C -->|read / grep| CB
+    C -->|search_kb / read_kb_file| KB
+    C -->|semantic_search| R
+    C -->|write_workspace_file| KB
 ```
 
-## Project Structure
+**Trust boundary:** everything inside `sample_codebase/`, plus anything derived from it
+(KB chapters, RAG chunks), is attacker-influenced. Every arrow out of those stores carries
+untrusted text into a model's context.
 
-- `app.py`: Entrypoint (`python app.py` calls `main()`).
-- `main.py`: Wires MCP clients, builds agents, launches the Gradio UI.
-- `agents/`
-	- `base_agent.py`: Base classes for simple and manager agents.
-	- `example_tool_calling_agent.py`: Tool-calling worker using DeepWiki MCP tools.
-	- `example_code_agent.py`: Code worker using a native Joke toolkit.
-	- `example_manager_agent.py`: Manager agent coordinating the workers.
-- `toolkits/example_joke_toolkit.py`: Native tool (`@tool get_joke`) exposed to agents.
-- `prompts/prompts.py`: Instruction strings for each example agent.
-- `mcp_manager/`
-	- `mcp_manager.py`: Loads MCP client configs and exposes tools.
-	- `mcp_config.json`: Example config with a `deepwiki` client.
-- `ui/`
-	- `gradio_agent_ui.py`: Minimal Gradio chat wrapper for an agent.
-	- `base_ui.py`: UI abstraction.
-- `env.example`: Template for `.env` variables.
-- `pyproject.toml`: Project metadata and dependencies.
+## Known attack surface
 
-## Customize & Extend
+Each finding links to the code that causes it and is mapped to the
+[OWASP Top 10 for LLM Applications 2026](https://genai.owasp.org/llm-top-10/), the
+[OWASP Top 10 for Agentic Applications](https://genai.owasp.org/) (ASI, Dec 2025) and
+[MITRE ATLAS](https://atlas.mitre.org/).
 
-### Create a New Agent
-1) Add a file under `agents/` and inherit from `BaseAgent` (or `BaseManagerAgent`).
-2) Inside `__init__`, build a Smolagents agent (`ToolCallingAgent` or `CodeAgent`) and assign it to `self.agent`.
+| # | Finding | Root cause | OWASP LLM 2026 | OWASP Agentic | ATLAS | Status |
+|---|---------|-----------|----------------|---------------|-------|--------|
+| F1 | Indirect prompt injection via file reads | [`read_codebase_file`](toolkits/scoped_filesystem_toolkit.py) returns raw file text into the chatbot's context | LLM01 | ASI01 | AML.T0051.001 | Planned |
+| F2 | RAG poisoning | [`semantic_search_documents`](toolkits/rag_toolkit.py) returns poisoned chunks verbatim; `build_rag_index_for_kb` indexes code by default | LLM01, LLM09 | ASI06 | AML.T0070 | Planned |
+| F3 | Stored injection through the KB build | Sub-agents read code and write KB chapters ([spawn_toolkit.py](toolkits/spawn_toolkit.py)). A payload that lands in `KB_INDEX.md` fires on every later query | LLM01, LLM05 | ASI06 | AML.T0070 | Planned |
+| F4 | Chatbot can overwrite its own KB | The chatbot's write workspace is the same directory as `KB_INDEX.md` ([tool_calling_agent.py](agents/tool_calling_agent.py)) | LLM03 | ASI06 | AML.T0053 | Planned |
+| F5 | Cross-agent escalation | The chatbot's output flows to the manager, which holds `spawn_sub_agents` and `build_rag_index_for_kb` ([manager_agent.py](agents/manager_agent.py)) | LLM03 | ASI07, ASI08 | AML.T0053 | Planned |
+| F6 | Model-written Python executed in-process | `CodeAgent` uses smolagents' `LocalPythonExecutor`, which is [not a security boundary](https://huggingface.co/docs/smolagents/tutorials/secure_code_execution) | LLM03 | ASI05 | — | Mitigated in Phase 0: disabled unless `ENABLE_CODE_AGENT=true` |
+| F7 | Public tunnel to a tool-wielding agent | The UI launched with `share=True`, and smolagents' `GradioUI.launch()` defaults to it | — | ASI03 | — | Fixed in Phase 0: opt-in via `GRADIO_SHARE` |
+| F8 | Vulnerable and compromisable dependencies | Pins from 2025, no lockfile | LLM04 | ASI04 | — | Fixed in Phase 0 (see below) |
 
-Example (tool-calling agent skeleton):
-```python
-# agents/my_agent.py
-import os
-from smolagents.agents import ToolCallingAgent
-from smolagents import LiteLLMModel, Tool
-from agents.base_agent import BaseAgent
-from prompts import prompts
+What is *not* a finding: path traversal. The scoped filesystem tools resolve `realpath` and
+check `commonpath`, so `../`, absolute paths and symlink escapes are rejected (covered by
+[tests](tests/test_scoped_filesystem.py)).
 
-class MyAgent(BaseAgent):
-	def __init__(self, tools: list[Tool]):
-		super().__init__()
-		self.agent = ToolCallingAgent(
-            ...
-        )
+## Phase 0: what changed
 
-	def run(self, message, history=None):
-		return self.agent.run(message)
+- **Dependencies:** smolagents 1.22 → 1.26, Gradio 5.49 → 6.30 (floor ≥ 6.20 for
+  CVE-2026-59806), LiteLLM 1.79 → 1.104 (the malicious 1.82.7 and 1.82.8 releases from the
+  March 2026 supply-chain compromise are excluded).
+  `pip-audit` on the original pins found **275 known vulnerabilities across 28 packages**;
+  on the current lock it finds **0**.
+- **Supply chain:** `uv.lock` with hashes, a 7-day dependency cooldown
+  (`tool.uv.exclude-newer`), Dependabot with cooldown, and CI actions pinned to commit SHAs
+  with a read-only token. The workflow is clean under [zizmor](https://docs.zizmor.sh/).
+- **Bugs fixed:**
+  - The RAG embedding used the builtin `hash()`. That hash is salted per process, so a
+    stored index did not match query embeddings after a restart. It now uses `blake2b`.
+  - `LITELLM_MODEL` in `.env` was silently ignored because it was read before `.env` was
+    loaded.
+  - The KB search ignored `AGENT_WORKSPACE_PATH`.
+  - The manager prompt rebuilt the whole KB on every chat message; it now routes questions
+    to the chatbot.
+- **Repository:** removed dead code (unused MCP manager); moved live-API scripts out of
+  `tests/`; added a realistic target, [`data/sample_codebase`](data/sample_codebase), a small
+  Flask + SQLite todo API with its own passing tests.
+
+## Quickstart
+
+Requires [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync
+cp env.example .env        # set LITELLM_MODEL and its API key
+uv run python main.py      # UI on http://127.0.0.1:7860
 ```
 
-Example (code agent skeleton):
-```python
-# agents/my_code_agent.py
-import os
-from smolagents.agents import CodeAgent
-from smolagents import LiteLLMModel, Tool
-from agents.base_agent import BaseAgent
-from prompts import prompts
+With `AUTO_BUILD_KB=true`, the KB is built from `CODEBASE_PATH` on startup. The UI binds
+to localhost only.
 
-class MyCodeAgent(BaseAgent):
-	def __init__(self, tools: list[Tool]):
-		super().__init__()
-		self.agent = CodeAgent(
-            ...
-        )
+## Tests
 
-	def run(self, message, history=None):
-		return self.agent.run(message)
+```bash
+uv run pytest              # offline; no API key needed
+uv run ruff check .
 ```
 
-Tip: Both agents accept additional parameters (e.g., `return_full_result`, step limits, etc.). See Smolagents docs for details:
-- Docs: https://huggingface.co/docs/smolagents
-- API reference and examples: https://github.com/huggingface/smolagents
+The suite includes an end-to-end test that drives the real smolagents loop
+(manager → chatbot → filesystem tool) with a scripted model, so framework upgrades that
+break delegation or tool dispatch fail CI. Live smoke checks against a real provider are in
+[`scripts/live/`](scripts/live).
 
-### Add Prompts
-- Put instruction strings in `prompts/prompts.py` (e.g., `MY_AGENT_INSTRUCTIONS = "..."`).
-- Reference them via the `instructions=` parameter when constructing the agent.
+## Project layout
 
-### Add Native Toolkits
-1) Create a function in `toolkits/` and decorate with `@tool`.
-2) Return it in a `get_tools()` list for easy import.
-
-```python
-# toolkits/my_tools.py
-from smolagents import tool
-
-@tool
-def my_utility(x: int) -> int:
-	return x * 2
-
-class MyToolkit:
-	@staticmethod
-	def get_tools():
-		return [my_utility]
+```
+agents/      manager, chatbot (tool_calling_agent), code agent, model wrapper
+toolkits/    scoped filesystem, KB build/search, RAG
+prompts/     system prompts
+ui/          Gradio UI
+data/sample_codebase/   the target project the assistant answers questions about
+tests/       offline test suite
 ```
 
-### Add MCP Clients/Tools
-1) Edit `mcp_manager/mcp_config.json` to add a client, for example:
-```json
-{
-	"deepwiki": { "url": "https://mcp.deepwiki.com/mcp", "transport": "streamable-http" },
-	"my_client": { "url": "https://my-mcp.example.com/mcp", "transport": "streamable-http" }
-}
-```
-2) Ensure `.env` has `MCP_CONFIG_PATH=mcp_manager/mcp_config.json` (or your custom path).
-3) In `main.py`, fetch tools with `mcp_manager.get_tools("my_client")`.
+## Roadmap
 
-### Compose Agents in `main.py`
-- Import your agents and toolkits, instantiate them, pass tools, then include them in the manager’s `managed_agents` list and UI:
+1. **Threat model:** data-flow diagram with trust boundaries, and a per-agent capability
+   analysis against the Rule of Two.
+2. **Attacks + evaluation harness:** reproducible payload overlays on the sample codebase,
+   attack success rate over N trials per scenario, a benign-task **utility** score (so that
+   "refuse everything" does not count as a defense), and runs across more than one model.
+3. **Layered defenses, measured one at a time:**
+   - prompt-level (spotlighting, policy prompt)
+   - detection (classifier / alignment checks)
+   - least privilege (tool removal, separate write workspace)
+   - architectural isolation (plan-then-execute, CaMeL-style control/data separation)
+4. **Adaptive attacks:** re-test every defense with attacks tuned against it, following
+   [*The Attacker Moves Second*](https://arxiv.org/abs/2510.09023). Static payloads
+   overstate how robust a defense is.
 
-```python
-import os
-from mcp_manager.mcp_manager import MCPManager
-from toolkits.my_tools import MyToolkit
-from agents.example_tool_calling_agent import ExampleToolCallingAgent
-from agents.example_code_agent import ExampleCodeAgent
-from agents.example_manager_agent import ExampleManagerAgent
-from ui.gradio_agent_ui import GradioAgentUI
+## Credits
 
-# 1) Setup MCP manager and clients
-mcp_manager = MCPManager(os.getenv("MCP_CONFIG_PATH", "mcp_manager/mcp_config.json"))
-mcp_manager.setup_clients()
-
-# 2) Fetch tools
-deepwiki_tools = mcp_manager.get_tools("deepwiki")
-joke_tools = MyToolkit.get_tools()
-
-# 3) Create workers
-tool_worker = ExampleToolCallingAgent(tools=deepwiki_tools)
-code_worker = ExampleCodeAgent(tools=joke_tools)
-
-# 4) Create manager and launch UI
-manager_agent = ExampleManagerAgent(tools=[], managed_agents=[tool_worker.agent, code_worker.agent])
-ui = GradioAgentUI(agent=manager_agent)
-ui.launch()
-```
-
-### UI Options
-- Change host/sharing in `ui/gradio_agent_ui.py` (`server_name`, `share`).
-
-## Troubleshooting
-- No MCP tools? Verify `MCP_CONFIG_PATH` points to a valid JSON (e.g., `mcp_manager/mcp_config.json`).
-- Model/auth errors? Set `LITELLM_MODEL_ID` and `LITELLM_API_KEY` in `.env`.
-- Connectivity issues? Ensure your network can reach the MCP endpoint(s).
-
-## References
-- Smolagents documentation: https://huggingface.co/docs/smolagents
-- Smolagents GitHub (examples, issues): https://github.com/huggingface/smolagents
-
+Originally built as a university capstone project with a teammate, with AI assistance.
