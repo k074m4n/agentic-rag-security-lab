@@ -17,6 +17,81 @@ _GLOBAL_CONCURRENCY = threading.Semaphore(1)
 
 DEFAULT_MODEL_ID = "openai/gpt-4.1-mini"
 
+
+class BudgetExceeded(RuntimeError):
+    """Raised inside generate() when the cost meter passes its cap."""
+
+
+class CostMeter:
+    """Process-wide accountant for model spend, fed by every generate() call.
+
+    Idle by default: it only tracks once `reset(cap=...)` is called, so normal
+    app runs are unaffected. The eval harness arms it with a per-process cap and
+    reads `total_cost` back afterwards.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.active = False
+        self.cap: Optional[float] = None
+        self.total_cost = 0.0
+        self.calls = 0
+        self.input_tokens = 0
+        self.output_tokens = 0
+
+    def reset(self, cap: Optional[float] = None) -> None:
+        with self._lock:
+            self.active = True
+            self.cap = cap
+            self.total_cost = 0.0
+            self.calls = 0
+            self.input_tokens = 0
+            self.output_tokens = 0
+
+    def record(self, cost: float, input_tokens: int, output_tokens: int) -> None:
+        if not self.active:
+            return
+        with self._lock:
+            self.total_cost += float(cost or 0.0)
+            self.calls += 1
+            self.input_tokens += int(input_tokens or 0)
+            self.output_tokens += int(output_tokens or 0)
+            over = self.cap is not None and self.total_cost >= self.cap
+            total = self.total_cost
+            cap = self.cap
+        if over:
+            raise BudgetExceeded(f"Cost cap reached: ${total:.4f} >= ${cap:.4f}")
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {
+                "total_cost": round(self.total_cost, 6),
+                "calls": self.calls,
+                "input_tokens": self.input_tokens,
+                "output_tokens": self.output_tokens,
+            }
+
+
+# Single shared meter; all agents call the same make_model() -> generate() path.
+cost_meter = CostMeter()
+
+
+def _extract_cost(chat_message: Any) -> tuple:
+    """Pull (cost, input_tokens, output_tokens) out of a model response.
+
+    OpenRouter puts the exact dollar cost in raw.usage.cost. Other providers may
+    not, in which case cost is 0.0 and only tokens are recorded.
+    """
+    cost = 0.0
+    raw = getattr(chat_message, "raw", None)
+    usage = getattr(raw, "usage", None)
+    if usage is not None:
+        cost = float(getattr(usage, "cost", 0.0) or 0.0)
+    tu = getattr(chat_message, "token_usage", None)
+    in_tok = getattr(tu, "input_tokens", 0) or 0
+    out_tok = getattr(tu, "output_tokens", 0) or 0
+    return cost, in_tok, out_tok
+
 def _model_id_for_role(role: str) -> str:
     """
     Her rol için env'den uygun model id'sini seçer.
@@ -162,6 +237,11 @@ class ThrottledLiteLLMModel(LiteLLMModel):
                             "Model returned empty message (no choices / no content / no tool_calls)."
                         )
                     # -----------------------------
+
+                    # Budget accounting (no-op unless the meter was armed).
+                    # record() raises BudgetExceeded if the cap is passed, which
+                    # propagates out of the agent run and stops the eval sweep.
+                    cost_meter.record(*_extract_cost(chat_message))
 
                     return chat_message
 
