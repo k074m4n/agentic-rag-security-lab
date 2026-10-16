@@ -141,4 +141,14 @@ tests/       offline test suite
 
 ## Credits
 
-Originally built as a university capstone project with a teammate, with AI assistance.
+- **Yiğit Kotaman** ([@k074m4n](https://github.com/k074m4n)): security lab (2026 onward),
+  capstone co-author.
+- **Alperen Tekin** ([@sirALp](https://github.com/sirALp)): capstone co-author.
+- The original agent skeleton (manager/worker layout, Gradio UI) comes from lokumai's
+  *Smolagents Quickstart Template* (MIT).
+
+The capstone was built with AI assistance as a university project in 2025.
+
+## License
+
+[MIT](LICENSE). The lokumai copyright notice is kept as the license requires.
