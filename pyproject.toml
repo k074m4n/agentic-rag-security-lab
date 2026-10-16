@@ -3,6 +3,12 @@ name = "agentic-rag-security-lab"
 version = "0.1.0"
 description = "A deliberately attackable multi-agent RAG codebase assistant (smolagents) for studying prompt injection, RAG poisoning and excessive agency."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Yiğit Kotaman" },
+    { name = "Alperen Tekin" },
+]
 requires-python = ">=3.11,<3.14"
 dependencies = [
     # Security floors:
