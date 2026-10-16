@@ -10,7 +10,8 @@ injection, and excessive agency. Defenses are then measured against those attack
 > harness and the defenses come next (see [Roadmap](#roadmap)).
 
 > **Scope.** This is a local, educational lab. It uses only fake secrets, attacks only its
-> own sample codebase, and has no real exfiltration endpoints.
+> own sample codebase, and has no real exfiltration endpoints. See
+> [SECURITY.md](SECURITY.md) for intended use and how to report issues.
 
 ## Why this target is interesting
 
@@ -145,10 +146,15 @@ tests/       offline test suite
   capstone co-author.
 - **Alperen Tekin** ([@sirALp](https://github.com/sirALp)): capstone co-author.
 - The original agent skeleton (manager/worker layout, Gradio UI) comes from lokumai's
-  *Smolagents Quickstart Template* (MIT).
+  [smolagents-quickstart-template](https://github.com/lokumai/smolagents-quickstart-template)
+  (MIT).
 
 The capstone was built with AI assistance as a university project in 2025.
 
 ## License
 
 [MIT](LICENSE). The lokumai copyright notice is kept as the license requires.
+
+OWASP is a trademark of the OWASP Foundation; MITRE ATLAS is a trademark of The MITRE
+Corporation. Their names and taxonomy IDs are used here only for reference. This project is
+independent and not affiliated with or endorsed by OWASP, MITRE, Meta or Hugging Face.
