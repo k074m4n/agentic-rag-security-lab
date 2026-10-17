@@ -13,6 +13,7 @@ PROFILES: dict[str, list[str]] = {
     "d1d2d3": ["d1", "d2", "d3"],
     "d1d2d3d4": ["d1", "d2", "d3", "d4"],
     "full": ["d1", "d2", "d3", "d4", "d5"],
+    "arch": ["d1", "d2", "d3", "d4", "d5", "d6"],
 }
 
 
