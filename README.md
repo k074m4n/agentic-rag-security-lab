@@ -68,8 +68,7 @@ A few things I did not expect going in:
   wording.
 
 The full tables, confidence intervals, and a per-layer breakdown are in
-[docs/RESULTS.md](docs/RESULTS.md). There is also a plain-language writeup of what the study
-taught me: [docs/WRITEUP.md](docs/WRITEUP.md).
+[docs/RESULTS.md](docs/RESULTS.md).
 
 ### Does it still work once it is locked down?
 
@@ -281,7 +280,7 @@ data/sample_codebase/   the toy Flask+SQLite API the assistant answers questions
 evals/         the measurement engine: harness, scenarios, graders, defense profiles, report
   ├── scenarios/   the 11 attack payload overlays (isolated, canary-based)
   └── baselines/   the archived result data behind docs/RESULTS.md
-docs/          THREAT_MODEL.md · RESULTS.md · WRITEUP.md
+docs/          THREAT_MODEL.md · RESULTS.md
 tests/         35 offline tests, including an end-to-end agent-loop test
 ```
 
