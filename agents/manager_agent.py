@@ -42,5 +42,6 @@ class ManagerAgent(BaseManagerAgent):
         logger.info(f"Initialized {self.agent.name}.")
 
     def run(self, *args, **kwargs):
+        defense.reset_tool_budget()
         rate_limiter.wait()
         return self.agent.run(*args, **kwargs)

@@ -123,6 +123,7 @@ def main() -> int:
 
     task = get_task(args.task)
     cost_meter.reset(cap=args.cost_cap)
+    defense.reset_tool_budget()
 
     record = {
         "model": args.model, "task_id": task.id, "kind": task.kind,

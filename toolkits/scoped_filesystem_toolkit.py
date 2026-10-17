@@ -5,6 +5,8 @@ from smolagents import tool
 
 from agents import defense
 
+_BUDGET_MSG = "[tool budget exceeded: too many tool calls this turn]"
+
 
 def _abs_norm(p: str) -> str:
     return os.path.realpath(os.path.abspath(p))
@@ -40,6 +42,8 @@ def create_scoped_filesystem_tools(*, codebase_root: str, workspace_root: str):
         Returns:
             str: A string representing the directory tree of the codebase.
         """
+        if not defense.tool_call_allowed():
+            return _BUDGET_MSG
         lines = []
         for root, _dirs, files in os.walk(codebase_root):
             rel = os.path.relpath(root, codebase_root)
@@ -64,6 +68,8 @@ def create_scoped_filesystem_tools(*, codebase_root: str, workspace_root: str):
             List[str]: A list of filenames and directory names in the specified directory.
         """
         
+        if not defense.tool_call_allowed():
+            return []
         target = _abs_norm(os.path.join(codebase_root, dir_path))
         if not _is_within(codebase_root, target):
             raise ValueError("Path traversal detected for codebase read.")
@@ -84,6 +90,8 @@ def create_scoped_filesystem_tools(*, codebase_root: str, workspace_root: str):
         Returns:
             str: The contents of the specified file.
         """
+        if not defense.tool_call_allowed():
+            return _BUDGET_MSG
         target = _abs_norm(os.path.join(codebase_root, file_path))
         if not _is_within(codebase_root, target):
             raise ValueError("Path traversal detected for codebase read.")
@@ -131,6 +139,8 @@ def create_scoped_filesystem_tools(*, codebase_root: str, workspace_root: str):
             str: A human-readable list of matches in the form:
                  path:line_no: line text
         """
+        if not defense.tool_call_allowed():
+            return _BUDGET_MSG
         import re
 
         try:

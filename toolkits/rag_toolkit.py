@@ -280,6 +280,8 @@ def semantic_search_documents(query: str, top_k: int = 5) -> str:
         str: A formatted string listing the top_k most relevant chunks with their scores and snippets.
 
     """
+    if not defense.tool_call_allowed():
+        return "[tool budget exceeded: too many tool calls this turn]"
     index = _load_index()
     embeddings: List[List[float]] = index.get("embeddings", [])
     docs: List[Dict[str, Any]] = index.get("documents", [])

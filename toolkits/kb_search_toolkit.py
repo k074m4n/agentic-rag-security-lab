@@ -72,6 +72,8 @@ def search_kb(query: str, top_k: int = 5) -> List[Dict]:
         The list is sorted by 'score' in descending order.
     
     """
+    if not defense.tool_call_allowed():
+        return []
     results=[]
     for fname in KB_FILES:
         fpath = os.path.join(_kb_root(), fname)
@@ -107,6 +109,8 @@ def read_kb_file(file_name: str) -> str:
         str: The contents of the KB file.
     
     """
+    if not defense.tool_call_allowed():
+        return "[tool budget exceeded: too many tool calls this turn]"
     if file_name not in KB_FILES:
         raise ValueError(f"Unsupported KB file: {file_name}")
     fpath = os.path.join(_kb_root(), file_name)

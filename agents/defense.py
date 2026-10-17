@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 
-_ALL = {"d1", "d2", "d3", "d5"}
+_ALL = {"d1", "d2", "d3", "d4", "d5"}
 
 
 def active_layers() -> set:
@@ -114,6 +115,51 @@ def max_subagents(requested: int) -> int:
         return requested
     cap = int(os.getenv("SECURE_MAX_SUBAGENTS", "6"))
     return max(1, min(requested, cap))
+
+
+# --- d4: targeted controls for the attacks the prompt layers miss -----------
+# (a) a per-turn tool-call budget, which stops resource-exhaustion amplification;
+# (b) build-time KB sanitization, which stops persistent poisoning from surviving
+#     into the knowledge base. Both are concrete versions of the "architectural"
+#     work the prompt/detection/output layers cannot do on their own.
+
+_budget_lock = threading.Lock()
+_tool_calls = 0
+
+
+def reset_tool_budget() -> None:
+    global _tool_calls
+    with _budget_lock:
+        _tool_calls = 0
+
+
+def tool_call_allowed() -> bool:
+    """Charge one tool call against the per-turn budget (d4). True if within it."""
+    global _tool_calls
+    if not enabled("d4"):
+        return True
+    cap = int(os.getenv("SECURE_MAX_TOOL_CALLS", "12"))
+    with _budget_lock:
+        _tool_calls += 1
+        return _tool_calls <= cap
+
+
+def sanitize_kb(text: str) -> str:
+    """Neutralize injection and redact secrets/canaries in KB content (d4).
+
+    Applied when the KB is assembled, so a poisoned chapter cannot persist a live
+    instruction (or a leaked secret) into every later query.
+    """
+    if not enabled("d4"):
+        return text
+    out = []
+    for line in text.splitlines():
+        if any(p.search(line) for p in _INJECTION_PATTERNS):
+            out.append("[flagged: possible prompt injection removed from KB]")
+        else:
+            out.append(line)
+    cleaned = "\n".join(out)
+    return _SECRET_OUTPUT.sub("[redacted]", cleaned)
 
 
 # --- d5: output handling ----------------------------------------------------

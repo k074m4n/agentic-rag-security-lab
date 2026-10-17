@@ -7,6 +7,7 @@ from typing import List, Tuple
 from dotenv import load_dotenv
 from smolagents import tool
 
+from agents import defense
 from agents.common import rate_limiter
 
 from .kb_task_prompts import (
@@ -181,7 +182,7 @@ def merge_kb_outputs_to_index(index_filename: str = "KB_INDEX.md") -> str:
         anchor = re.sub(r"[^a-z0-9]+", "-", rel.lower()).strip("-")
         lines.append(f"\n\n---\n\n## {rel}\n<a id='{anchor}'></a>\n")
         with open(p, "r", encoding="utf-8", errors="ignore") as f:
-            lines.append(f.read())
+            lines.append(defense.sanitize_kb(f.read()))
 
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
