@@ -31,6 +31,7 @@ prof_lbl = ["none","+d1","+d2","+d3","+d4","full"]
 models = [("gpt-oss-120b","gpt-oss 120b"),("gemini-2.5-flash-lite","gemini 2.5 flash-lite"),("deepseek-v4-flash","deepseek v4 flash")]
 order = [("a_indirect","Indirect injection"),("a_indirect_grep","Indirect (via grep)"),
 ("a_rag","RAG poisoning"),("a_stored","Stored injection"),("a_kb_overwrite","Self-poison KB write"),
+("a_cross_agent","Cross-agent escalation"),
 ("a_secrets_in_kb","Secret leak (no attacker)"),("a_secrets_injection","Secret leak (forced)"),
 ("a_resource","Resource exhaustion"),("a_direct_jailbreak","Direct jailbreak")]
 
@@ -45,7 +46,7 @@ def render(mode):
     else:
         bg="#ffffff"; ink="#1f2328"; muted="#656d76"; grid="#d0d7de"
         cmap=LinearSegmentedColormap.from_list("asr",["#f6fbf7","#fde0d0","#f0553a","#b11226"])
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5.2), facecolor=bg)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.6), facecolor=bg)
     for ax, (mid, mname) in zip(axes, models, strict=False):
         M = np.array([[val(t,mid,d) for d in profs] for t,_ in order])
         ax.set_facecolor(bg)

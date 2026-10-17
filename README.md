@@ -6,7 +6,7 @@
 
 I took a real "ask questions about your codebase" assistant, attacked it the way an
 adversary would, and measured which defenses actually stop the attacks. Not one model,
-not one run. Three models, ~2,700 trials, with the numbers to back it up.
+not one run. Three models, ~2,900 trials, with the numbers to back it up.
 
 [![CI](https://github.com/k074m4n/agentic-rag-security-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/k074m4n/agentic-rag-security-lab/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11--3.13-blue)
@@ -31,7 +31,7 @@ Here is what I did about it:
 1. Rebuilt a realistic assistant (our university capstone) into a safe local test range.
 2. Wrote 11 attacks covering every way its design can be abused.
 3. Added 5 defense layers that switch on one at a time.
-4. Ran the whole thing ~2,700 times across 3 models to see what holds up, with confidence
+4. Ran the whole thing ~2,900 times across 3 models to see what holds up, with confidence
    intervals instead of vibes.
 
 > It is a lab, not a weapon. Everything runs locally against a toy app, with fake secrets
@@ -55,11 +55,11 @@ them. We want the red to turn white.
 
 A few things I did not expect going in:
 
-- The full defense stack takes **every attack to 0% on all three models**. But it takes the
-  *whole* stack. No single layer gets you there.
+- The full defense stack takes **every attack to 0%** (one lone gemini cross-agent trial
+  aside, which is noise). But it takes the *whole* stack. No single layer gets you there.
 - The same attack is basically a coin flip, and the coin depends on the model. Plain file
-  injection is 60% on one model, 100% on another, 0% on a third. One model tested once would
-  have told me nothing.
+  injection is 60% on one model, 100% on another, 0% on a third. Cross-agent escalation is
+  90% on one and near zero on the other two. One model tested once would have told me nothing.
 - Adding a defense sometimes makes an attack *more* likely before the full stack fixes it.
   Look at the bumps in the middle columns. I cannot fully explain all of them, and I left
   them in rather than cherry-pick a clean story.
