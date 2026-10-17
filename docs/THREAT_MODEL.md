@@ -136,18 +136,21 @@ Likelihood assumes the content attacker from §2. **H** = high, **M** = medium, 
 **Highest priority:** T3 and T9. Both corrupt a persistent store that every later session
 trusts, and T9 needs no attacker at all.
 
-## 7. Control plan
+## 7. Control plan (implemented and measured)
 
-Controls are grouped into layers and will be **added and measured one at a time**, so
-that each one's effect on attack success and on utility is visible on its own.
+Controls are grouped into layers and **added and measured one at a time** (via
+`SECURE_LAYERS`), so each one's effect on attack success and on utility is visible on its
+own. Results are in [RESULTS.md](RESULTS.md); the full stack takes every attack to 0%.
 
-| Layer | Control | Threats addressed | Notes |
+| Layer | Control | Threats addressed | Status |
 |---|---|---|---|
-| **D1 Prompt-level** | Mark retrieved content as data (spotlighting / delimiting) plus a policy in the system prompt | T1, T2, T3 | Cheap; known to be bypassable by adaptive attacks. Measured as a baseline, not relied on. |
-| **D2 Detection** | Injection classifier on tool outputs; trace-level alignment check of the agent's actions against the user's request | T1–T5 | Must report false positives on benign content, not only blocked attacks |
-| **D3 Least privilege** | Remove `write_workspace_file` from the chatbot; give workers a write root separate from the KB; cap `number_of_subagents` and retries; exclude secret files from the KB pipeline | T4, T5, T9, T10 | Removes capabilities instead of asking the model to behave. Expected to be the most robust layer. |
-| **D4 Architecture** | Separate planning from untrusted data (plan-then-execute; CaMeL-style control/data separation) so that retrieved text cannot change which tools are called | T1–T5 | Highest cost, strongest guarantee |
-| **D5 Output & audit** | Validate output before display; OpenTelemetry tracing of every tool call and hand-off | T11, T12 | Tracing also supplies the evidence for Phase 2 measurements |
+| **D1 Prompt-level** | Mark retrieved content as data (spotlighting) plus a policy in the system prompt | T1, T2, T3 | Built. Collapses file-read injection; bypassable alone. |
+| **D2 Detection** | Neutralize injection-like lines in tool output before the model sees them | T1–T5, T9 | Built. The layer that stops build-time directives. |
+| **D3 Least privilege** | Remove `write_workspace_file` from the chatbot; deny secret-file reads; cap `number_of_subagents` | T4, T5, T9, T10 | Built. Closes the no-attacker secret leak. |
+| **D4 Structural** | Cap parallel tool calls per step; sanitize the KB at build time | T3, T10 | Built. The only layer that stops resource exhaustion and persistent poisoning. |
+| **D5 Output** | Redact leaked secrets and canaries from the answer before display | T2, T9, T11 | Built. Stops a direct jailbreak the model otherwise complies with. |
+| D4+ Architecture | Plan-then-execute / CaMeL-style control-data separation | T1–T5 | **Future work.** A redesign, not a layer; see RESULTS.md limits. |
+| D5+ Audit | OpenTelemetry tracing of every tool call and hand-off | T12 | Future work. |
 
 ## 8. How this will be measured (Phase 2)
 
