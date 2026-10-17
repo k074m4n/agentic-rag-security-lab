@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import os
 import re
-import threading
 
 _ALL = {"d1", "d2", "d3", "d4", "d5"}
 
@@ -118,30 +117,19 @@ def max_subagents(requested: int) -> int:
 
 
 # --- d4: targeted controls for the attacks the prompt layers miss -----------
-# (a) a per-turn tool-call budget, which stops resource-exhaustion amplification;
+# (a) a per-step cap on parallel tool calls (enforced at the model boundary in
+#     agents/common.py), which stops resource-exhaustion amplification;
 # (b) build-time KB sanitization, which stops persistent poisoning from surviving
 #     into the knowledge base. Both are concrete versions of the "architectural"
-#     work the prompt/detection/output layers cannot do on their own.
-
-_budget_lock = threading.Lock()
-_tool_calls = 0
+#     work the prompt/detection/output layers cannot do on their own. Both are
+#     stateless, so they behave identically in the eval and in the live app.
 
 
-def reset_tool_budget() -> None:
-    global _tool_calls
-    with _budget_lock:
-        _tool_calls = 0
-
-
-def tool_call_allowed() -> bool:
-    """Charge one tool call against the per-turn budget (d4). True if within it."""
-    global _tool_calls
+def max_parallel_tool_calls() -> int:
+    """Cap on tool calls per model step (d4); large when the layer is off."""
     if not enabled("d4"):
-        return True
-    cap = int(os.getenv("SECURE_MAX_TOOL_CALLS", "12"))
-    with _budget_lock:
-        _tool_calls += 1
-        return _tool_calls <= cap
+        return 10**9
+    return int(os.getenv("SECURE_MAX_PARALLEL_CALLS", "3"))
 
 
 def sanitize_kb(text: str) -> str:

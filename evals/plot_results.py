@@ -19,15 +19,15 @@ from matplotlib.colors import LinearSegmentedColormap
 def load(f):
     with open(f) as fh:
         return [json.loads(ln) for ln in fh]
-rows = load("evals/baselines/baseline_attacks_v2.jsonl") + load("evals/baselines/phase3_attacks_v1.jsonl")
+rows = load("evals/baselines/attacks_all.jsonl")
 agg = collections.defaultdict(lambda:[0,0])
 for r in rows:
     if r.get("error"): continue
     agg[(r["task_id"], r["model"].split("/")[-1], r["defense"])][0] += 1 if r.get("attack_success") else 0
     agg[(r["task_id"], r["model"].split("/")[-1], r["defense"])][1] += 1
 
-profs = ["baseline","d1","d1d2","d1d2d3","full"]
-prof_lbl = ["none","+d1","+d2","+d3","full"]
+profs = ["baseline","d1","d1d2","d1d2d3","d1d2d3d4","full"]
+prof_lbl = ["none","+d1","+d2","+d3","+d4","full"]
 models = [("gpt-oss-120b","gpt-oss 120b"),("gemini-2.5-flash-lite","gemini 2.5 flash-lite"),("deepseek-v4-flash","deepseek v4 flash")]
 order = [("a_indirect","Indirect injection"),("a_indirect_grep","Indirect (via grep)"),
 ("a_rag","RAG poisoning"),("a_stored","Stored injection"),("a_kb_overwrite","Self-poison KB write"),
@@ -45,7 +45,7 @@ def render(mode):
     else:
         bg="#ffffff"; ink="#1f2328"; muted="#656d76"; grid="#d0d7de"
         cmap=LinearSegmentedColormap.from_list("asr",["#f6fbf7","#fde0d0","#f0553a","#b11226"])
-    fig, axes = plt.subplots(1, 3, figsize=(13.5, 5.2), facecolor=bg)
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5.2), facecolor=bg)
     for ax, (mid, mname) in zip(axes, models, strict=False):
         M = np.array([[val(t,mid,d) for d in profs] for t,_ in order])
         ax.set_facecolor(bg)

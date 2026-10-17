@@ -52,16 +52,13 @@ def test_d3_secret_path_and_cap(monkeypatch):
     assert defense.max_subagents(6) == 2
 
 
-def test_d4_tool_budget(monkeypatch):
+def test_d4_parallel_cap(monkeypatch):
     _set(monkeypatch, "d4")
-    monkeypatch.setenv("SECURE_MAX_TOOL_CALLS", "3")
-    defense.reset_tool_budget()
-    assert [defense.tool_call_allowed() for _ in range(5)] == [True, True, True, False, False]
-    defense.reset_tool_budget()
-    assert defense.tool_call_allowed() is True
-    # disabled when d4 is off
+    assert defense.max_parallel_tool_calls() == 3
+    monkeypatch.setenv("SECURE_MAX_PARALLEL_CALLS", "5")
+    assert defense.max_parallel_tool_calls() == 5
     _set(monkeypatch, "")
-    assert all(defense.tool_call_allowed() for _ in range(50))
+    assert defense.max_parallel_tool_calls() > 1000  # effectively unlimited when off
 
 
 def test_d4_kb_sanitize(monkeypatch):

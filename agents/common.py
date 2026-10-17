@@ -243,10 +243,9 @@ class ThrottledLiteLLMModel(LiteLLMModel):
                     # d4: cap parallel tool calls per step at the model boundary,
                     # which stops resource-exhaustion amplification (one step
                     # asking for 100 greps is truncated to a handful).
-                    if tool_calls and defense.enabled("d4"):
-                        cap = int(os.getenv("SECURE_MAX_PARALLEL_CALLS", "3"))
-                        if len(tool_calls) > cap:
-                            chat_message.tool_calls = tool_calls[:cap]
+                    cap = defense.max_parallel_tool_calls()
+                    if tool_calls and len(tool_calls) > cap:
+                        chat_message.tool_calls = tool_calls[:cap]
 
                     # Budget accounting (no-op unless the meter was armed).
                     # record() raises BudgetExceeded if the cap is passed, which
