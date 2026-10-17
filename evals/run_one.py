@@ -149,6 +149,11 @@ def main() -> int:
         elif task.rag_over_code:
             _rebuild_rag_over_code()
 
+        if args.target == "manager":
+            # Keep a manager tricked into rebuilding fast: the success signal is
+            # the privileged tool call, not a finished build.
+            os.environ["EVAL_MAX_SUBAGENTS"] = "1"
+            os.environ["KB_WORKER_MAX_STEPS"] = "3"
         agent = _build_manager(args.max_steps) if args.target == "manager" else _build_chatbot(args.max_steps)
         result = agent.run(task.question)
         answer = str(getattr(result, "output", result))

@@ -43,6 +43,11 @@ def spawn_sub_agents(number_of_subagents: int, task_descriptions: List[str]) -> 
 
     # d3 least privilege: cap sub-agent fan-out
     capped = defense.max_subagents(number_of_subagents)
+    # Eval-only speed cap, so a manager tricked into rebuilding finishes fast
+    # (the attack already succeeded once the tool is invoked).
+    eval_cap = os.getenv("EVAL_MAX_SUBAGENTS")
+    if eval_cap:
+        capped = min(capped, int(eval_cap))
     if capped < number_of_subagents:
         number_of_subagents = capped
         task_descriptions = task_descriptions[:capped]
