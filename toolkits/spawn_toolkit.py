@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from smolagents import tool
 from smolagents.agents import ToolCallingAgent as SmolToolCallingAgent
 
+from agents import defense
 from agents.common import make_model, rate_limiter
 
 try:
@@ -39,6 +40,12 @@ def spawn_sub_agents(number_of_subagents: int, task_descriptions: List[str]) -> 
         raise ValueError("number_of_subagents must be > 0")
     if len(task_descriptions) != number_of_subagents:
         raise ValueError("task_descriptions length must equal number_of_subagents")
+
+    # d3 least privilege: cap sub-agent fan-out
+    capped = defense.max_subagents(number_of_subagents)
+    if capped < number_of_subagents:
+        number_of_subagents = capped
+        task_descriptions = task_descriptions[:capped]
 
     workspaces: List[str] = []
     codebase_root = _abs_norm(CODEBASE_PATH)

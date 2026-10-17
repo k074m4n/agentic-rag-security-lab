@@ -3,6 +3,8 @@ from typing import List
 
 from smolagents import tool
 
+from agents import defense
+
 
 def _abs_norm(p: str) -> str:
     return os.path.realpath(os.path.abspath(p))
@@ -85,10 +87,13 @@ def create_scoped_filesystem_tools(*, codebase_root: str, workspace_root: str):
         target = _abs_norm(os.path.join(codebase_root, file_path))
         if not _is_within(codebase_root, target):
             raise ValueError("Path traversal detected for codebase read.")
+        # d3 least privilege: refuse secret files (.env, credentials, ...)
+        if defense.enabled("d3") and defense.is_secret_path(file_path):
+            raise ValueError(f"Reading secret files is not allowed: {file_path}")
         if not os.path.isfile(target):
             raise FileNotFoundError(f"File not found: {file_path}")
         with open(target, "r", encoding="utf-8", errors="ignore") as f:
-            return f.read()
+            return defense.guard_tool_output(f.read())
 
     @tool
     def write_workspace_file(file_path: str, content: str) -> str:
@@ -178,7 +183,7 @@ def create_scoped_filesystem_tools(*, codebase_root: str, workspace_root: str):
         if not matches:
             return f"No matches for pattern {pattern!r}."
 
-        return "Matches:\n" + "\n".join(matches)
+        return defense.guard_tool_output("Matches:\n" + "\n".join(matches))
 
     return [get_codebase_tree, list_codebase_directory, read_codebase_file, write_workspace_file, grep_codebase]
 
