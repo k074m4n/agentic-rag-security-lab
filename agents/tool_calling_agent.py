@@ -6,6 +6,7 @@ from loguru import logger
 from smolagents import Tool
 from smolagents.agents import ToolCallingAgent as SmolToolCallingAgent
 
+from agents import defense
 from agents.base_agent import BaseAgent
 from agents.common import make_model, rate_limiter
 from prompts import prompts
@@ -23,15 +24,21 @@ class ToolCallingAgent(BaseAgent):
         super().__init__()
 
         kb_tools = [search_kb, read_kb_file, semantic_search_documents]
-        
+
         # Codebase filesystem tools (read, tree, list, write, grep)
         code_tools = create_scoped_filesystem_tools(
             codebase_root=CODEBASE_PATH,
             workspace_root=AGENT_WORKSPACE,
         )
 
+        # d3 least privilege: a Q&A chatbot has no reason to write files.
+        if defense.enabled("d3"):
+            code_tools = [t for t in code_tools if t.name != "write_workspace_file"]
+
         all_tools = tools + kb_tools + code_tools
 
+        # d1: prepend the security policy to the system prompt.
+        instructions = defense.policy_prefix() + prompts.TOOL_CALLING_AGENT
 
         self.agent = SmolToolCallingAgent(
             name="tool_calling_agent",
@@ -39,7 +46,7 @@ class ToolCallingAgent(BaseAgent):
             tools=all_tools,
             max_steps=max_steps,
             model=make_model(role="chat"),
-            instructions=prompts.TOOL_CALLING_AGENT,
+            instructions=instructions,
             return_full_result=return_full_result
         )
 

@@ -6,6 +6,8 @@ from typing import Dict, List, Tuple
 from dotenv import load_dotenv
 from smolagents import tool
 
+from agents import defense
+
 load_dotenv()
 
 # Files produced by the KB build pipeline (merge_kb_outputs_to_index / build_kb_short_from_index)
@@ -88,7 +90,7 @@ def search_kb(query: str, top_k: int = 5) -> List[Dict]:
                     "file": fname,
                     "section": section,
                     "score": round(sc, 4),
-                    "snippet": snippet
+                    "snippet": defense.guard_tool_output(snippet)
                 })
     results.sort(key=lambda x: x["score"], reverse=True)
     return results[:top_k]
@@ -110,4 +112,4 @@ def read_kb_file(file_name: str) -> str:
     fpath = os.path.join(_kb_root(), file_name)
     if not os.path.exists(fpath):
         raise FileNotFoundError(f"{file_name} not found in KB root.")
-    return _read_file(fpath)
+    return defense.guard_tool_output(_read_file(fpath))

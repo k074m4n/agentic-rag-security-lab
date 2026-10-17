@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from smolagents import tool
 
+from agents import defense
 from agents.common import rate_limiter
 
 load_dotenv()
@@ -316,5 +317,5 @@ def semantic_search_documents(query: str, top_k: int = 5) -> str:
     rate_limiter.wait()
     time.sleep(0.1)
 
-    return "\n".join(lines)
+    return defense.guard_tool_output("\n".join(lines))
 

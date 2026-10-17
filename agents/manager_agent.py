@@ -6,6 +6,7 @@ from loguru import logger
 from smolagents import Tool
 from smolagents.agents import ToolCallingAgent as SmolToolCallingAgent
 
+from agents import defense
 from agents.base_agent import BaseAgent, BaseManagerAgent
 from agents.common import make_model, rate_limiter
 from prompts import prompts
@@ -33,7 +34,7 @@ class ManagerAgent(BaseManagerAgent):
             tools=tools,
             max_steps=int(os.getenv("MANAGER_MAX_STEPS", "6")),
             model=make_model(role="manager"),
-            instructions=prompts.MANAGER_AGENT,
+            instructions=defense.policy_prefix() + prompts.MANAGER_AGENT,
             managed_agents=managed_agents,
             return_full_result=RETURN_FULL_RESULT,
         )

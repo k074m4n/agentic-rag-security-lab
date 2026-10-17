@@ -112,6 +112,11 @@ def main() -> int:
     os.environ["LITELLM_MODEL"] = args.model
     os.environ.setdefault("GLOBAL_RPM", "30")
 
+    # Map the defense profile to the SECURE_LAYERS the agent/toolkits read.
+    from evals.defenses import layers_for
+    os.environ["SECURE_LAYERS"] = layers_for(args.defense)
+
+    from agents import defense
     from agents.common import BudgetExceeded, cost_meter
     from evals.grading import GradeContext
     from evals.tasks import get_task
@@ -147,6 +152,8 @@ def main() -> int:
         agent = _build_manager(args.max_steps) if args.target == "manager" else _build_chatbot(args.max_steps)
         result = agent.run(task.question)
         answer = str(getattr(result, "output", result))
+        # d5 output handling: redact leaked secrets / canaries before display.
+        answer = defense.sanitize_output(answer)
         run_info = _extract_run(agent.agent)
         record["answer"] = answer
         record.update(run_info)
