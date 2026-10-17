@@ -5,9 +5,9 @@ A multi-agent RAG assistant for codebase Q&A, built with
 attacks on LLM agents**: indirect prompt injection, RAG poisoning, persistent (stored)
 injection, and excessive agency. Defenses are then measured against those attacks.
 
-> **Status: Phase 0 (foundation) and Phase 1 ([threat model](docs/THREAT_MODEL.md)) are complete.** The app runs on current, audited
-> dependencies and has an offline test suite and CI. Attack scenarios, the evaluation
-> harness and the defenses come next (see [Roadmap](#roadmap)).
+> **Status: Phases 0–3 complete.** Foundation + [threat model](docs/THREAT_MODEL.md), an
+> isolated evaluation harness with 11 attack scenarios, and four measured defense layers.
+> Full before/after results are in **[docs/RESULTS.md](docs/RESULTS.md)**.
 
 > **Scope.** This is a local, educational lab. It uses only fake secrets, attacks only its
 > own sample codebase, and has no real exfiltration endpoints. See
@@ -22,6 +22,19 @@ Meta's [Agents Rule of Two](https://ai.meta.com/blog/practical-ai-agent-security
 it: an agent should combine at most two of (A) untrusted input, (B) sensitive data/systems
 and (C) state change or external communication. This app, as originally built, combines
 all three.
+
+## Headline result
+
+Across 3 models and cumulative defense profiles (~1,700 attack runs + ~700 utility runs):
+
+- **Full defenses drive almost every attack to 0% ASR with no utility loss** on gpt-oss and
+  deepseek (utility 100%→100%); two threats resist — resource exhaustion and stored KB
+  poisoning — and are flagged as architectural work.
+- **Susceptibility is model-dependent and stochastic:** indirect injection is 60% / 100% /
+  0% across the three models at baseline. A single-run "100%→0%" claim would hide this.
+- **Each defense layer stops a different attack**, and partial defenses are not monotonic.
+
+See **[docs/RESULTS.md](docs/RESULTS.md)** for the full matrices and [findings](docs/RESULTS.md#key-findings).
 
 ## Architecture
 
@@ -133,10 +146,10 @@ tests/       offline test suite
 
 1. ~~**Threat model:** data-flow diagram with trust boundaries, and a per-agent capability
    analysis against the Rule of Two.~~ Done: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
-2. **Attacks + evaluation harness:** reproducible payload overlays on the sample codebase,
+2. ✅ **Attacks + evaluation harness:** reproducible payload overlays on the sample codebase,
    attack success rate over N trials per scenario, a benign-task **utility** score (so that
    "refuse everything" does not count as a defense), and runs across more than one model.
-3. **Layered defenses, measured one at a time:**
+3. ✅ **Layered defenses, measured one at a time:**
    - prompt-level (spotlighting, policy prompt)
    - detection (classifier / alignment checks)
    - least privilege (tool removal, separate write workspace)
