@@ -8,7 +8,6 @@ I took a real "ask questions about your codebase" assistant, attacked it the way
 adversary would, and measured which defenses actually stop the attacks. Not one model,
 not one run. Three models, about 3,200 trials, with the numbers to back it up.
 
-[![CI](https://github.com/k074m4n/agentic-rag-security-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/k074m4n/agentic-rag-security-lab/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11--3.13-blue)
 ![Tests](https://img.shields.io/badge/tests-35%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -365,8 +364,8 @@ Before any of the security work, the project needed a clean foundation:
   original pins, and 0 on the current locked set. smolagents 1.22 to 1.26, Gradio 5.49 to 6.30
   (for CVE-2026-59806), and LiteLLM upgraded while blocking the malicious 1.82.7 and 1.82.8
   releases from the March 2026 supply-chain compromise.
-- Supply chain: a hashed `uv.lock`, a 7-day dependency cooldown, Dependabot, and CI with
-  SHA-pinned actions and a read-only token (clean under [zizmor](https://docs.zizmor.sh/)).
+- Supply chain: a fully pinned, hashed `uv.lock` and every dependency audited with `pip-audit`
+  (0 known vulnerabilities on the locked set; run `uv run pytest` and the audit command locally).
 - Real bugs: RAG embeddings that changed on every restart (salted `hash()`, now `blake2b`), a
   `.env` model setting that was silently ignored, and a manager that rebuilt the whole KB on
   every message.
